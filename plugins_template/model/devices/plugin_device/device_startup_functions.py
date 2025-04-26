@@ -1,15 +1,16 @@
 # Standard Imports
 import os
 from pathlib import Path
+from multiprocessing.managers import ListProxy
 
 from navigate.tools.common_functions import load_module_from_file
 from navigate.model.device_startup_functions import device_not_found
 
-DEVICE_TYPE_NAME = "plugin_device"  # Same as in configuraion.yaml, for example "stage", "filter_wheel", "remote_focus_device"...
-DEVICE_REF_LIST = ["type"]  # the reference value from configuration.yaml
-SUPPORTED_DEVICE_TYPES = ["PluginDevice", "Synthetic"]
+DEVICE_TYPE_NAME = "stage"  # Same as in configuraion.yaml, for example "stage", "filter_wheel", "remote_focus_device"...
+DEVICE_REF_LIST = ["type", "axes", "axes_mapping"]  # the reference value from configuration.yaml
+SUPPORTED_DEVICE_TYPES = ["VastDevice", "Synthetic"]
 
-def load_device(hardware_configuration, is_synthetic=False):
+def load_device(hardware_configuration, is_synthetic=False, **kwargs):
     """Build device connection.
 
     Parameters
@@ -23,10 +24,12 @@ def load_device(hardware_configuration, is_synthetic=False):
     -------
     device_connection : object
     """
+    print("Loading plugin device!!!")
+
     return type("DeviceConnection", (object,), {})
 
 
-def start_device(microscope_name, device_connection, configuration, is_synthetic=False):
+def start_device(microscope_name, device_connection, configuration, is_synthetic=False, **kwargs):
     """Start device.
 
     Parameters
@@ -44,34 +47,46 @@ def start_device(microscope_name, device_connection, configuration, is_synthetic
     -------
     device_object : object
     """
+    device_category = kwargs['device_type']
+    id = kwargs['id']
+
+    device_config = configuration["configuration"]["microscopes"][microscope_name][
+        device_category
+    ]["hardware"]
+    
     if is_synthetic:
         device_type = "synthetic"
-    else:
-        device_type = configuration["configuration"]["microscopes"][microscope_name][
-            "plugin_device"
-        ]["hardware"]["type"]
+    elif type(device_config) == ListProxy:
+        device_type = device_config[id]["type"]
+    else: 
+        device_type = device_config["type"]
 
-    if device_type == "PluginDevice":
+    if device_type == "VastDevice":
         # install through navigate
-        # plugin_device = load_module_from_file(
-        #     "plugin_device",
-        #     os.path.join(Path(__file__).resolve().parent, "plugin_device.py"),
-        # )
-        # return plugin_device.PluginDevice(device_connection=device_connection)
+        plugin_device = load_module_from_file(
+            "plugin_device",
+            os.path.join(Path(__file__).resolve().parent, "plugin_device.py"),
+        )
+        return plugin_device.VastDevice(
+            microscope_name=microscope_name,
+            device_connection=device_connection,
+            configuration=configuration,
+            device_id=id
+            )
 
         # install through pip
-        from .plugin_device import PluginDevice
-        return PluginDevice(device_connection=device_connection)
+        # from .plugin_device import PluginDevice
+        # return PluginDevice(device_connection=device_connection)
     elif device_type.lower() == "synthetic":
         # install through navigate
-        # synthetic_device = load_module_from_file(
-        #     "synthetic_device",
-        #     os.path.join(Path(__file__).resolve().parent, "synthetic_device.py"),
-        # )
-        # return synthetic_device.SyntheticDevice(device_connection=device_connection)
+        synthetic_device = load_module_from_file(
+            "synthetic_device",
+            os.path.join(Path(__file__).resolve().parent, "synthetic_device.py"),
+        )
+        return synthetic_device.SyntheticDevice(device_connection=device_connection)
     
         # install through pip
-        from .synthetic_device import SyntheticDevice
-        return SyntheticDevice(device_connection=device_connection)
+        # from .synthetic_device import SyntheticDevice
+        # return SyntheticDevice(device_connection=device_connection)
     else:
         return device_not_found(microscope_name, device_type)
