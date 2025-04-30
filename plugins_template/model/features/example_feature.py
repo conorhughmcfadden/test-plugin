@@ -24,7 +24,17 @@ class ExampleFeature:
 
     def pre_func_signal(self):
         """Prepare device thread to run this feature"""
-        pass
+
+        galvo_stage = self.model.active_microscope.stages["z"]
+
+        sample_rate = galvo_stage.sample_rate
+
+        (
+            exposure_times,
+            sweep_times,
+        ) = self.model.active_microscope.get_exposure_sweep_times()
+
+        print(f"sample_rate: {sample_rate}\nexposure_times: {exposure_times}\nsweep_times: {sweep_times}")
 
     def in_func_signal(self):
         """set devices before snaping an image"""
